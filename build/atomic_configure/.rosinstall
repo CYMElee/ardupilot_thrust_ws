@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/lee/workspace/ros_ws/ardupilot_thrust_ws/devel/setup.sh

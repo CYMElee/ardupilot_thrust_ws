@@ -10,8 +10,8 @@
             <arg name="gcs_url" value="$(arg gcs_url)"/>
             <arg name="tgt_system" value="$(arg SYS_ID)"/>
         </include>
-        <node name="topic_tool" pkg="attitude_control" type="topic_tool"></node>
-        <node name="origin_py" pkg="attitude_control" type="origin.py" output="screen"></node>
+        <node name="topic_tool" pkg="thrust_test" type="topic_tool"></node>
+        <node name="origin_py" pkg="thrust_test" type="origin.py" output="screen"></node>
         <node name="keyboard" pkg="thrust_test" type="keyboard_control" output="screen"></node>
     </group>
 </launch>

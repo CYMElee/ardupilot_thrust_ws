@@ -1,0 +1,8 @@
+prefix=/home/lee/workspace/ros_ws/ardupilot_thrust_ws/devel
+
+Name: thrust_test
+Description: Description of thrust_test
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

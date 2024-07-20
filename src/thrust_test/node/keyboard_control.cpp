@@ -10,11 +10,13 @@
 #include "mavros_msgs/State.h"
 #include "mavros_msgs/Mavlink.h"
 #include "mavros_msgs/AttitudeTarget.h"
+#include "mavros_msgs/Thrust.h"
 
 
 mavros_msgs::State current_state;
 geometry_msgs::PoseStamped pose;
-mavros_msgs::AttitudeTarget T;
+geometry_msgs::PoseStamped R;
+mavros_msgs::Thrust T;
 
 
 void state_cb(const mavros_msgs::State::ConstPtr& msg){
@@ -33,13 +35,12 @@ int main(int argv,char** argc)
 /***************************************************************/
 /*                     Initialize                              */
 /***************************************************************/
-    T.type_mask = T.IGNORE_PITCH_RATE | T.IGNORE_ROLL_RATE | T.IGNORE_YAW_RATE;
-    T.orientation.w = 1.0;
-    T.orientation.x = 0.0;
-    T.orientation.y = 0.0;
-    T.orientation.z = 0.0;
-    T.thrust = 0.4;
 
+T.thrust = 0.4;
+R.pose.orientation.w = 1;
+R.pose.orientation.x = 0;
+R.pose.orientation.y = 0;
+R.pose.orientation.z = 0;
 /***************************************************************/
 /*                     Takeoff                                */
 /***************************************************************/
@@ -59,8 +60,10 @@ int main(int argv,char** argc)
 /*                       Accelerator                           */
 /***************************************************************/
 
-    ros::Publisher T_pub = nh.advertise<mavros_msgs::AttitudeTarget>
-        ("mavros/setpoint_raw/attitude", 10);
+    ros::Publisher T_pub = nh.advertise<mavros_msgs::Thrust>
+        ("mavros/setpoint_attitude/thrust", 10);
+    ros::Publisher R_pub = nh.advertise<geometry_msgs::PoseStamped>
+        ("mavros/setpoint_attitude/attitude", 10);
 
     ros::Rate rate(100.0);
 
@@ -115,10 +118,8 @@ int main(int argv,char** argc)
     while(ros::ok())
     {
         int c = getch();
-        if(c == EOF)
-        {
-            c = c_prev;
-        }
+
+
         if(c != EOF){
             switch (c)
             {
@@ -144,10 +145,9 @@ int main(int argv,char** argc)
 
             }
             }
-        c_prev = c;
         ROS_INFO("Current_Thrust:%f",T.thrust);
         T_pub.publish(T);
-
+        R_pub.publish(R);
         ros::spinOnce();
         rate.sleep();
         }
