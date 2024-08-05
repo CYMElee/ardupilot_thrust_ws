@@ -4,6 +4,7 @@
 #include "getch.h"
 #include "string.h"
 #include "geometry_msgs/PoseStamped.h"
+#include "std_msgs/Float32MultiArray.h"
 #include "mavros_msgs/CommandBool.h"
 #include "mavros_msgs/CommandTOL.h"
 #include "mavros_msgs/SetMode.h"
@@ -11,16 +12,47 @@
 #include "mavros_msgs/Mavlink.h"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "mavros_msgs/Thrust.h"
+#include "cmath"
+#include "Eigen/Dense"
 
+float dt = 0.01;
+int t;
+float theta = 0;
+float theta_2 = 0;
 
 mavros_msgs::State current_state;
 geometry_msgs::PoseStamped pose;
 geometry_msgs::PoseStamped R;
-mavros_msgs::Thrust T;
+std_msgs::Float32MultiArray rd;
+Eigen::Matrix<float, 3, 3> Rr;
 
+mavros_msgs::AttitudeTarget T;
 
 void state_cb(const mavros_msgs::State::ConstPtr& msg){
     current_state = *msg;
+}
+
+void Attitude(int t){
+    theta = 0.5*sin(t*dt);
+    theta_2 = 0.5*cos(t*dt);
+    float yaw = 0.0;
+    float roll = theta;
+    float pitch = theta_2;
+
+    Eigen::Quaternionf quaternion;
+    
+    quaternion = Eigen::AngleAxisf(yaw, Eigen::Vector3f::UnitZ())
+               * Eigen::AngleAxisf(pitch, Eigen::Vector3f::UnitY())
+               * Eigen::AngleAxisf(roll, Eigen::Vector3f::UnitX());
+
+    T.orientation.w =quaternion.w();
+    T.orientation.x =quaternion.x();
+    T.orientation.y =quaternion.y();
+    T.orientation.z =quaternion.z();
+    Rr = Eigen::AngleAxisf(yaw, Eigen::Vector3f::UnitZ())
+               * Eigen::AngleAxisf(pitch, Eigen::Vector3f::UnitY())
+               * Eigen::AngleAxisf(roll, Eigen::Vector3f::UnitX());
+    
 }
 
 
@@ -31,16 +63,20 @@ int main(int argv,char** argc)
     ros::NodeHandle nh;
     int c_prev = EOF;
     int UAV_ID;
+    t = 0;
 
 /***************************************************************/
 /*                     Initialize                              */
 /***************************************************************/
 
-T.thrust = 0.4;
-R.pose.orientation.w = 1;
-R.pose.orientation.x = 0;
-R.pose.orientation.y = 0;
-R.pose.orientation.z = 0;
+T.orientation.w = 1;
+T.orientation.x = 0;
+T.orientation.y = 0;
+T.orientation.z = 0;
+T.type_mask = T.IGNORE_PITCH_RATE | \
+T.IGNORE_ROLL_RATE |T.IGNORE_YAW_RATE ;
+
+
 /***************************************************************/
 /*                     Takeoff                                */
 /***************************************************************/
@@ -60,10 +96,9 @@ R.pose.orientation.z = 0;
 /*                       Accelerator                           */
 /***************************************************************/
 
-    ros::Publisher T_pub = nh.advertise<mavros_msgs::Thrust>
-        ("mavros/setpoint_attitude/thrust", 10);
-    ros::Publisher R_pub = nh.advertise<geometry_msgs::PoseStamped>
-        ("mavros/setpoint_attitude/attitude", 10);
+    ros::Publisher T_pub = nh.advertise<mavros_msgs::AttitudeTarget>
+        ("mavros/setpoint_raw/attitude", 10);
+
 
     ros::Rate rate(100.0);
 
@@ -72,12 +107,11 @@ R.pose.orientation.z = 0;
         rate.sleep();
     }
     ros::param::get("UAV_ID", UAV_ID);
-   // UAV_ID = 1;
+
     ROS_INFO("Wait for setting origin and home position...");
     std::string mavlink_topic = std::string("/MAV") + std::to_string(UAV_ID) + std::string("/mavlink/to");
     ros::topic::waitForMessage<mavros_msgs::Mavlink>(mavlink_topic);
     ROS_INFO("Message received or timeout reached. Continuing execution.");
- 
     pose.pose.position.x = 0;
     pose.pose.position.y = 0;
     pose.pose.position.z = 0;
@@ -90,7 +124,7 @@ R.pose.orientation.z = 0;
     }
 
     mavros_msgs::SetMode offb_set_mode;
-    offb_set_mode.request.custom_mode = "GUIDED";
+    offb_set_mode.request.custom_mode = "OFFBOARD";
 
     mavros_msgs::CommandBool arm_cmd;
     arm_cmd.request.value = true;
@@ -104,16 +138,7 @@ R.pose.orientation.z = 0;
     if( arming_client.call(arm_cmd) && arm_cmd.response.success) {
         ROS_INFO("Vehicle armed");
     }
-    ros::ServiceClient takeoff_cl = nh.serviceClient<mavros_msgs::CommandTOL>("mavros/cmd/takeoff");
-    mavros_msgs::CommandTOL srv_takeoff;
-    srv_takeoff.request.altitude = 0.5;
-    if (takeoff_cl.call(srv_takeoff)) {
-        ROS_INFO("srv_takeoff send ok %d", srv_takeoff.response.success);
-    } else {
-        ROS_ERROR("Failed Takeoff");
-    }
 
-    sleep(10);
 
     while(ros::ok())
     {
@@ -125,18 +150,18 @@ R.pose.orientation.z = 0;
             {
             case 'A':
                 {
-                    T.thrust+=0.5;
+                    T.thrust+=0.1;
                 }
                 break;
             case 'Z':
                 {
-                    T.thrust-=0.5;
+                    T.thrust-=0.1;
                 }
                 break;
             case 'E':
                 {
                     ROS_WARN("kill!");
-                    offb_set_mode.request.custom_mode = "LAND";
+                    offb_set_mode.request.custom_mode = "AUTO.LAND";
                     set_mode_client.call(offb_set_mode);
                     arm_cmd.request.value = false;
                     arming_client.call(arm_cmd);
@@ -146,8 +171,11 @@ R.pose.orientation.z = 0;
             }
             }
         ROS_INFO("Current_Thrust:%f",T.thrust);
+
+
+        Attitude(t);
         T_pub.publish(T);
-        R_pub.publish(R);
+        t++;
         ros::spinOnce();
         rate.sleep();
         }

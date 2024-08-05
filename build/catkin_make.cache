@@ -1,2 +1,0 @@
-thrust_test
--DCMAKE_BUILD_TYPE=RelWithDebInfo -DCATKIN_DEVEL_PREFIX=/home/lee/workspace/ros_ws/ardupilot_thrust_ws/devel -DCMAKE_INSTALL_PREFIX=/home/lee/workspace/ros_ws/ardupilot_thrust_ws/install -G Unix Makefiles
